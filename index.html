@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI生图 V6 · 已完成查看</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f1f5f9; color: #334155; margin: 0; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+
+        .app-shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* ============ 页头 ============ */
+        .page-header { background: white; border-bottom: 1px solid #e2e8f0; padding: 13px 24px 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .page-header h1 { font-size: 19px; font-weight: 700; color: #0f172a; letter-spacing: -0.01em; margin: 0; }
+
+        /* 原型版本切换器（评审用，非产品功能。用虚线 + 冷色 + 等宽前缀标识其"外置工具"性质） */
+        .proto-switcher {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 3px 5px 3px 10px; border-radius: 999px;
+            border: 1px dashed #94a3b8;
+            background: #f8fafc;
+        }
+        .proto-switcher .proto-tag {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-family: ui-monospace, monospace;
+            font-size: 10px; color: #64748b; letter-spacing: 0.04em;
+            padding-right: 8px; border-right: 1px dashed #cbd5e1;
+            user-select: none;
+        }
+        .proto-switcher .proto-tag i { color: #94a3b8; font-size: 11px; }
+        .proto-switcher .proto-seg { display: inline-flex; gap: 2px; }
+        .proto-switcher .proto-btn {
+            padding: 3px 12px; font-size: 11px; font-weight: 500;
+            border-radius: 999px; cursor: pointer;
+            color: #64748b; background: transparent; border: none;
+            transition: all 0.12s;
+        }
+        .proto-switcher .proto-btn:not(.active):hover { background: #e2e8f0; color: #0f172a; }
+        .proto-switcher .proto-btn.active { background: #334155; color: white; font-weight: 600; }
+
+        /* ============ 筛选区 ============ */
+        .filter-bar { background: #fafbfc; border-bottom: 1px solid #e2e8f0; padding: 10px 24px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+        .filter-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; position: relative; }
+        .filter-row-label { font-size: 9px; font-weight: 700; color: #94a3b8; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; background: white; border: 1px solid #e2e8f0; border-radius: 3px; flex-shrink: 0; }
+        .filter-row-label.task-scope { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+        .filter-row-label.photo-scope { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+        .filter-item { display: flex; align-items: center; gap: 5px; }
+        .filter-label { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .filter-select { font-size: 12px; padding: 4px 24px 4px 9px; border: 1px solid #d1d5db; border-radius: 5px; background: white; cursor: pointer; min-width: 110px; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3e%3cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 6px center; background-size: 13px; -webkit-appearance: none; appearance: none; }
+        .filter-input { font-size: 12px; padding: 4px 9px; border: 1px solid #d1d5db; border-radius: 5px; width: 220px; }
+        .filter-input:focus, .filter-select:focus { outline: none; border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.1); }
+        .filter-reset { font-size: 11px; color: #64748b; cursor: pointer; padding: 4px 9px; border-radius: 4px; background: none; border: 1px solid transparent; }
+        .filter-reset:hover { background: white; border-color: #e2e8f0; color: #334155; }
+
+        /* 创建人筛选 */
+        .creator-filter { position: relative; }
+        .creator-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 5px; background: white; cursor: pointer; min-width: 180px; user-select: none; }
+        .creator-trigger:hover { border-color: #16a34a; }
+        .creator-trigger.open { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.1); }
+        .creator-trigger .chips-wrap { flex: 1; min-width: 0; display: flex; gap: 3px; flex-wrap: wrap; align-items: center; }
+        .creator-trigger .placeholder { color: #94a3b8; font-size: 12px; }
+        .creator-trigger .caret { color: #94a3b8; font-size: 10px; }
+        .creator-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px 1px 2px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 3px; font-size: 11px; color: #15803d; font-weight: 500; line-height: 1.4; }
+        .creator-chip .x { cursor: pointer; font-size: 9px; color: #64748b; }
+        .creator-chip .x:hover { color: #14532d; }
+
+        .creator-dropdown { position: absolute; top: calc(100% + 4px); left: 0; width: 260px; max-height: 340px; background: white; border: 1px solid #e2e8f0; border-radius: 7px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); z-index: 50; display: none; flex-direction: column; overflow: hidden; }
+        .creator-dropdown.open { display: flex; }
+        .creator-dd-search { padding: 7px 9px; border-bottom: 1px solid #f1f5f9; }
+        .creator-dd-search input { width: 100%; padding: 4px 8px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 4px; }
+        .creator-dd-list { flex: 1; overflow-y: auto; padding: 4px; }
+        .creator-dd-item { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .creator-dd-item:hover { background: #f0fdf4; }
+        .creator-dd-item.selected { background: #dcfce7; }
+        .creator-dd-item .chk { width: 13px; height: 13px; border: 1.5px solid #cbd5e1; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: white; }
+        .creator-dd-item.selected .chk { background: #16a34a; border-color: #16a34a; }
+        .creator-dd-item.selected .chk::after { content: '✓'; color: white; font-size: 9px; }
+        .creator-dd-item .info-name { font-size: 12px; color: #0f172a; font-weight: 500; }
+        .creator-dd-item .info-sub { font-size: 10px; color: #94a3b8; }
+
+        /* ============ 状态 Tab (只图片视图显示) ============ */
+        .status-tabs-wrap { background: white; border-bottom: 1px solid #e2e8f0; padding: 0 24px; display: flex; gap: 0; flex-shrink: 0; align-items: center; justify-content: space-between; }
+        .status-tabs { display: flex; gap: 0; }
+        .status-tab { padding: 9px 16px; font-size: 12px; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 6px; transition: all 0.15s; user-select: none; font-weight: 500; }
+        .status-tab:hover { color: #0f172a; }
+        .status-tab.active { font-weight: 600; }
+        .status-tab.active[data-status="all"] { color: #0f172a; border-bottom-color: #0f172a; }
+        .status-tab.active[data-status="approved"] { color: #15803d; border-bottom-color: #15803d; }
+        .status-tab.active[data-status="rejected"] { color: #dc2626; border-bottom-color: #dc2626; }
+        .status-tab .count { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; background: #f1f5f9; color: #64748b; font-family: ui-monospace, monospace; }
+        .status-tab.active[data-status="all"] .count { background: #e2e8f0; color: #0f172a; }
+        .status-tab.active[data-status="approved"] .count { background: #dcfce7; color: #15803d; }
+        .status-tab.active[data-status="rejected"] .count { background: #fee2e2; color: #dc2626; }
+        .status-tab i { font-size: 11px; }
+        /* 默认就给图标上语义色：通过绿 / 不通过红；"全部"图标随文字走保持中性灰 */
+        .status-tab[data-status="approved"] i { color: #16a34a; }
+        .status-tab[data-status="rejected"] i { color: #dc2626; }
+
+        .quick-hint { font-size: 10px; color: #94a3b8; padding: 0 8px; }
+
+        /* ============ 工具栏 ============ */
+
+        .seg-label { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px; }
+        .seg { display: inline-flex; background: #f1f5f9; padding: 2px; border-radius: 6px; border: 1px solid #e2e8f0; gap: 1px; }
+        .seg-opt { padding: 4px 10px; font-size: 11px; color: #64748b; border-radius: 4px; cursor: pointer; user-select: none; transition: all 0.15s; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+        .seg-opt:hover:not(.active) { background: #e2e8f0; color: #334155; }
+        .seg-opt.active { background: white; color: #16a34a; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-weight: 600; }
+        .seg-opt i { font-size: 10px; }
+
+        .density-seg { display: inline-flex; background: #f1f5f9; padding: 2px; border-radius: 6px; border: 1px solid #e2e8f0; gap: 1px; }
+        .density-btn { width: 26px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; color: #64748b; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+        .density-btn:hover:not(.active) { background: #e2e8f0; color: #334155; }
+        .density-btn.active { background: white; color: #16a34a; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        .btn-primary { display: inline-flex; align-items: center; padding: 4px 11px; font-size: 11px; font-weight: 600; border-radius: 5px; color: white; background-color: #16a34a; cursor: pointer; border: none; gap: 4px; }
+        .btn-primary:hover { background-color: #15803d; }
+        .btn-default { display: inline-flex; align-items: center; padding: 4px 11px; font-size: 11px; font-weight: 500; border-radius: 5px; color: #374151; background-color: white; border: 1px solid #d1d5db; cursor: pointer; gap: 4px; }
+        .btn-default:hover { background-color: #f9fafb; border-color: #9ca3af; }
+
+        /* ============ 头像 ============ */
+        .user-avatar { border-radius: 50%; color: white; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: -0.02em; line-height: 1; }
+        .user-avatar.xs { width: 14px; height: 14px; font-size: 7px; }
+        .user-avatar.sm { width: 18px; height: 18px; font-size: 8px; }
+        .user-avatar.md { width: 24px; height: 24px; font-size: 10px; }
+        .user-avatar.lg { width: 30px; height: 30px; font-size: 11px; }
+        .user-avatar[data-color="blue"] { background: #3b82f6; }
+        .user-avatar[data-color="green"] { background: #10b981; }
+        .user-avatar[data-color="orange"] { background: #f97316; }
+        .user-avatar[data-color="purple"] { background: #a855f7; }
+        .user-avatar[data-color="pink"] { background: #ec4899; }
+        .user-avatar[data-color="cyan"] { background: #06b6d4; }
+        .user-avatar[data-color="red"] { background: #ef4444; }
+        .user-avatar[data-color="amber"] { background: #f59e0b; }
+
+        /* ============ 主内容 ============ */
+        .content-area { flex: 1; min-height: 0; overflow-y: auto; background: #f8fafc; display: flex; flex-direction: column; }
+        .view-body { flex: 1; padding: 14px 24px 20px; }
+
+        .is-me-tag { font-size: 9px; padding: 1px 4px; background: #dbeafe; color: #1d4ed8; border-radius: 2px; margin-left: 3px; font-weight: 700; }
+
+        /* ============ 图片视图 ============ */
+        .photo-grid { display: grid; gap: 12px; }
+        .photo-grid.density-compact { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+        .photo-grid.density-standard { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+        .photo-grid.density-large { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+
+        .photo-card { background: white; border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.15s; position: relative; }
+        .photo-card:hover { border-color: #86efac; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.12); transform: translateY(-1px); }
+        .photo-card.selected { border-color: #16a34a; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2); }
+
+        .photo-thumb { aspect-ratio: 1; background: #f1f5f9; position: relative; overflow: hidden; }
+        .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        .thumb-top-right { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 3; align-items: center; }
+
+        .status-badge { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); border: 1.5px solid white; }
+        .status-badge.approved { background: #22c55e; }
+        .status-badge.rejected { background: #ef4444; }
+
+        .model-badge { padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: ui-monospace, monospace; backdrop-filter: blur(4px); color: white; letter-spacing: 0.02em; }
+        .model-badge[data-color="blue"] { background: rgba(29,78,216,0.85); }
+        .model-badge[data-color="green"] { background: rgba(21,128,61,0.85); }
+        .model-badge[data-color="orange"] { background: rgba(194,65,12,0.85); }
+        .model-badge[data-color="purple"] { background: rgba(126,34,206,0.85); }
+
+        .hover-mask { position: absolute; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; transition: opacity 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px; z-index: 2; }
+        .photo-card:hover .hover-mask { opacity: 1; }
+        .hover-mask button { background: white; color: #0f172a; padding: 5px 9px; font-size: 11px; font-weight: 600; border-radius: 4px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+        .hover-mask button:hover { background: #f0fdf4; color: #15803d; }
+
+        /* 图片卡底部只显示类型标签（其他信息已上移到任务头） */
+        .photo-meta { padding: 6px 9px 7px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; }
+        .photo-meta .type-label {
+            font-size: 11px; font-weight: 600; color: #0f172a;
+            font-family: ui-monospace, monospace;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* 紧凑模式：缩小类型标签字号 */
+        .photo-grid.density-compact .photo-meta { padding: 4px 7px 5px; }
+        .photo-grid.density-compact .photo-meta .type-label { font-size: 10px; }
+
+        /* 大图模式保持默认即可 */
+
+        /* ============ 时间筛选器 (完整版) ============ */
+        .time-filter-wrap { position: relative; }
+        .time-filter-trigger {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 9px; font-size: 12px;
+            border: 1px solid #d1d5db; border-radius: 5px;
+            background: white; cursor: pointer;
+            min-width: 220px; user-select: none;
+        }
+        .time-filter-trigger:hover { border-color: #16a34a; }
+        .time-filter-trigger.open { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.1); }
+        .time-filter-trigger .tf-dim { font-size: 10px; color: #64748b; background: #f1f5f9; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+        .time-filter-trigger .tf-value { color: #0f172a; font-weight: 500; flex: 1; }
+        .time-filter-trigger .tf-caret { color: #94a3b8; font-size: 10px; }
+
+        .time-filter-panel {
+            position: absolute; top: calc(100% + 4px); left: 0;
+            width: 320px; background: white;
+            border: 1px solid #e2e8f0; border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);
+            z-index: 50; display: none;
+            padding: 12px;
+        }
+        .time-filter-panel.open { display: block; }
+        .tf-section { margin-bottom: 10px; }
+        .tf-section:last-child { margin-bottom: 0; }
+        .tf-section-title { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+        .tf-dim-switch { display: inline-flex; background: #f1f5f9; padding: 2px; border-radius: 5px; border: 1px solid #e2e8f0; gap: 1px; width: 100%; }
+        .tf-dim-opt { flex: 1; padding: 5px; font-size: 11px; color: #64748b; border-radius: 4px; cursor: pointer; text-align: center; user-select: none; transition: all 0.15s; font-weight: 500; }
+        .tf-dim-opt:hover:not(.active) { background: #e2e8f0; color: #334155; }
+        .tf-dim-opt.active { background: white; color: #16a34a; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-weight: 600; }
+
+        .tf-quick-options { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .tf-quick-opt {
+            padding: 6px 10px; font-size: 11px;
+            border: 1px solid #e2e8f0; border-radius: 4px;
+            background: white; color: #475569;
+            cursor: pointer; user-select: none;
+            text-align: center; font-weight: 500;
+            transition: all 0.1s;
+        }
+        .tf-quick-opt:hover { border-color: #16a34a; color: #15803d; background: #f0fdf4; }
+        .tf-quick-opt.active { border-color: #16a34a; background: #dcfce7; color: #15803d; font-weight: 600; }
+
+        .tf-custom-range { display: flex; align-items: center; gap: 6px; }
+        .tf-custom-range input { flex: 1; padding: 5px 8px; font-size: 11px; border: 1px solid #d1d5db; border-radius: 4px; font-family: ui-monospace, monospace; }
+        .tf-custom-range input:focus { outline: none; border-color: #16a34a; }
+
+        /* ============ 排序切换 ============ */
+        .sort-switch {
+            display: inline-flex; align-items: center; gap: 5px;
+            background: white; border: 1px solid #d1d5db; border-radius: 5px;
+            padding: 3px 5px;
+        }
+        .sort-switch .sort-label { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 4px; }
+        .sort-switch select { font-size: 11px; padding: 2px 4px; border: none; background: transparent; cursor: pointer; color: #0f172a; font-weight: 500; }
+        .sort-switch select:focus { outline: none; }
+        .sort-switch .sort-order-btn {
+            width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+            border: none; background: #f1f5f9; border-radius: 3px; cursor: pointer;
+            color: #475569; font-size: 10px;
+        }
+        .sort-switch .sort-order-btn:hover { background: #e2e8f0; color: #0f172a; }
+
+        /* ============ 张数筛选组合 ============ */
+        .count-filter { display: inline-flex; align-items: center; gap: 4px; }
+        .count-filter select, .count-filter input {
+            font-size: 12px; padding: 4px 9px; border: 1px solid #d1d5db; border-radius: 5px; background: white;
+        }
+        .count-filter select { cursor: pointer; padding-right: 22px; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3e%3cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 5px center; background-size: 12px; -webkit-appearance: none; appearance: none; }
+        .count-filter .count-dim { min-width: 100px; }
+        .count-filter .count-op { min-width: 46px; font-family: ui-monospace, monospace; text-align: center; }
+        .count-filter input[type="number"] { width: 70px; font-family: ui-monospace, monospace; }
+        .count-filter input:focus, .count-filter select:focus { outline: none; border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.1); }
+
+        /* ============ 查询/重置按钮组 ============ */
+        .filter-action-group { display: inline-flex; align-items: center; gap: 6px; }
+        .btn-apply {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 13px; font-size: 12px; font-weight: 600;
+            color: white; background: #16a34a; border: 1px solid #16a34a;
+            border-radius: 5px; cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .btn-apply:hover { background: #15803d; border-color: #15803d; }
+        .btn-apply.dirty {
+            background: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22,163,74,0.18);
+            animation: apply-pulse 1.8s ease-in-out infinite;
+        }
+        @keyframes apply-pulse {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(22,163,74,0.18); }
+            50% { box-shadow: 0 0 0 5px rgba(22,163,74,0.1); }
+        }
+        .btn-apply .apply-dot {
+            position: absolute; top: -3px; right: -3px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #f59e0b; border: 1.5px solid white;
+        }
+
+        /* ============ 创建人树形筛选 ============ */
+        .creator-dd-list { max-height: 380px; overflow-y: auto; }
+        .tree-node { position: relative; }
+        .tree-row {
+            display: flex; align-items: center; gap: 7px;
+            padding: 5px 10px; cursor: pointer; user-select: none;
+            font-size: 12px; color: #334155;
+            transition: background 0.1s;
+        }
+        .tree-row:hover { background: #f8fafc; }
+        .tree-row-dept { font-weight: 600; color: #0f172a; background: #fafbfc; }
+        .tree-row-dept:hover { background: #f1f5f9; }
+        .tree-row-group { padding-left: 24px; font-weight: 500; }
+        .tree-row-user { padding-left: 42px; }
+        .tree-row-user.selected { background: #f0fdf4; }
+        .tree-row-user.selected:hover { background: #dcfce7; }
+        .tree-row-user.highlight { background: #fef9c3; }
+
+        .tree-chevron { font-size: 9px; color: #94a3b8; width: 10px; flex-shrink: 0; }
+        .tree-indent { width: 10px; flex-shrink: 0; }
+        .tree-icon-dept { font-size: 10px; color: #15803d; flex-shrink: 0; }
+        .tree-icon-group { font-size: 10px; color: #1d4ed8; flex-shrink: 0; }
+        .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tree-count { font-size: 10px; color: #94a3b8; font-family: ui-monospace, monospace; flex-shrink: 0; }
+
+        /* checkbox：none / all / partial */
+        .tree-chk {
+            width: 14px; height: 14px; border-radius: 3px;
+            border: 1.5px solid #cbd5e1; background: white;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: all 0.15s;
+        }
+        .tree-chk.all { background: #16a34a; border-color: #16a34a; }
+        .tree-chk.all::after {
+            content: ''; width: 7px; height: 4px;
+            border-left: 1.5px solid white; border-bottom: 1.5px solid white;
+            transform: rotate(-45deg) translate(1px, -1px);
+        }
+        .tree-chk.partial { background: #16a34a; border-color: #16a34a; }
+        .tree-chk.partial::after {
+            content: ''; width: 7px; height: 0;
+            border-top: 1.5px solid white;
+        }
+        .tree-row:hover .tree-chk.none { border-color: #16a34a; }
+
+        /* chip-agg: 表示部门/组聚合选中 */
+        .creator-chip.chip-agg {
+            background: #f0fdf4; border-color: #bbf7d0; color: #15803d;
+            gap: 3px;
+        }
+
+        /* 任务分隔条（2 行结构：主信息 + 元数据）— 主轴是 Task */
+        .task-divider {
+            display: flex; flex-direction: column;
+            padding: 10px 14px; margin: 16px 0 10px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-left: 3px solid #16a34a;
+            border-radius: 6px;
+            font-size: 12px;
+            gap: 6px;
+        }
+        .task-divider:first-child { margin-top: 0; }
+
+        /* 第一行：TaskID (主) · SKU (次) · 标题 | 统计 */
+        .task-divider-row1 { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .task-divider-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+        /* TaskID 作为主标识：突出显示 */
+        .task-divider-taskid {
+            font-weight: 700; color: #0f172a;
+            font-family: ui-monospace, monospace;
+            padding: 2px 8px; background: #f0fdf4;
+            border: 1px solid #bbf7d0; border-radius: 3px;
+            font-size: 12px;
+        }
+        /* SKU 辅助标识：小号灰字，不换行 */
+        .task-divider-sku {
+            font-family: ui-monospace, monospace;
+            font-size: 11px; color: #334155;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        /* 标题：flex 自适应填满左侧剩余空间，只在撑不下时才省略号 */
+        .task-divider-title {
+            color: #0f172a; font-size: 12px; font-weight: 500;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            flex: 1; min-width: 0;
+        }
+        /* 第一行的 k 标签样式，和第二行 .task-divider-meta .k 保持一致节奏 */
+        .task-divider-left .k {
+            font-size: 11px; color: #94a3b8; font-weight: 500;
+            flex-shrink: 0;
+        }
+        .task-divider-stats {
+            font-size: 11px; color: #64748b;
+            font-family: ui-monospace, monospace;
+            flex-shrink: 0;
+        }
+        .task-divider-stats strong { color: #0f172a; font-weight: 700; }
+
+        /* 第二行：左侧（创建人 · 创建时间 · 更新时间） | 右侧（尺寸） */
+        .task-divider-row2 {
+            display: flex; align-items: center; gap: 14px;
+            font-size: 11px; color: #64748b;
+            flex-wrap: wrap;
+            padding-top: 4px; border-top: 1px dashed #f1f5f9;
+        }
+        /* 所有 meta 项统一"标签 值"文字风格，不要图标 */
+        .task-divider-meta {
+            display: inline-flex; align-items: baseline; gap: 4px;
+            font-size: 11px; color: #64748b;
+        }
+        .task-divider-meta .k { color: #94a3b8; }
+        .task-divider-meta .v { color: #334155; font-family: ui-monospace, monospace; }
+        /* 尺寸右下对齐，档位 2：中灰加粗，比通过数弱但比隐形强 */
+        .task-divider-meta.size-meta {
+            margin-left: auto;
+        }
+        .task-divider-meta.size-meta .v {
+            color: #334155; font-weight: 600; font-family: inherit;
+        }
+
+        /* 空态 */
+        .empty-state { padding: 60px 20px; text-align: center; color: #94a3b8; }
+        .empty-state i { font-size: 32px; margin-bottom: 8px; display: block; color: #cbd5e1; }
+        .empty-state .msg { font-size: 13px; font-weight: 500; color: #64748b; }
+        .empty-state .sub { font-size: 11px; margin-top: 4px; }
+
+        /* ============ 分页器 ============ */
+        .pager { background: white; border-top: 1px solid #e2e8f0; padding: 10px 24px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; flex-wrap: wrap; gap: 10px; }
+        .pager-info { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .pager-info strong { color: #0f172a; font-weight: 700; }
+        .pager-controls { display: flex; align-items: center; gap: 4px; }
+        .pager-btn { min-width: 28px; height: 28px; padding: 0 8px; font-size: 12px; border-radius: 5px; border: 1px solid #e2e8f0; background: white; color: #475569; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; gap: 3px; }
+        .pager-btn:hover:not(:disabled):not(.active) { background: #f8fafc; border-color: #cbd5e1; }
+        .pager-btn.active { background: #16a34a; border-color: #16a34a; color: white; font-weight: 700; }
+        .pager-btn:disabled { color: #cbd5e1; cursor: not-allowed; }
+        .pager-btn.ellipsis { border: none; cursor: default; background: none; color: #94a3b8; }
+        .pager-btn.ellipsis:hover { background: none; }
+        .pager-jump { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #64748b; margin-left: 6px; }
+        .pager-jump input { width: 48px; padding: 3px 6px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 4px; text-align: center; font-family: ui-monospace, monospace; }
+        .pager-jump input:focus { outline: none; border-color: #16a34a; }
+        .page-size-select { font-size: 11px; padding: 3px 20px 3px 7px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3e%3cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 4px center; background-size: 12px; -webkit-appearance: none; appearance: none; }
+
+
+        /* Toast */
+        .toast { position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #0f172a; color: white; padding: 9px 18px; border-radius: 999px; font-size: 12px; font-weight: 500; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 999; opacity: 0; transition: all 0.25s; pointer-events: none; display: flex; align-items: center; gap: 7px; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast i { color: #86efac; }
+
+    </style>
+</head>
+<body>
+
+<div id="toast" class="toast"><i class="fa-solid fa-circle-check"></i><span id="toast-text">操作成功</span></div>
+
+<div class="app-shell">
+
+    <!-- 页头 -->
+    <div class="page-header">
+        <h1>查看已完成生图</h1>
+        <!-- 原型版本切换器：仅用于评审展示两版差异（美工版=系统SKU / 运营版=店铺+ASIN），
+             非产品功能。研发交付时本控件整体删除，两版为独立页面。 -->
+        <div class="proto-switcher" title="原型评审用控件：切换后可查看美工版 / 运营版两套独立页面的差异">
+            <span class="proto-tag"><i class="fa-solid fa-ruler-combined"></i>原型预览</span>
+            <div class="proto-seg">
+                <button class="proto-btn active" data-version="art" onclick="switchVersion('art')">美工版</button>
+                <button class="proto-btn" data-version="ops" onclick="switchVersion('ops')">运营版</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 子 Tab（全部/通过/不通过）+ 排序 + 密度（即时触发） -->
+    <div class="status-tabs-wrap" id="status-tabs-wrap">
+        <div class="status-tabs" id="status-tabs"></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="sort-switch" id="sort-switch">
+                <span class="sort-label">排序</span>
+                <select id="sort-dim" onchange="applySort()">
+                    <option value="created">创建时间</option>
+                    <option value="updated">更新时间</option>
+                </select>
+                <button class="sort-order-btn" id="sort-order-btn" onclick="toggleSortOrder()" title="切换升序/降序">
+                    <i class="fa-solid fa-arrow-down-wide-short"></i>
+                </button>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <span class="seg-label">密度</span>
+                <div class="density-seg" id="density-seg">
+                    <div class="density-btn" data-density="compact" title="紧凑" onclick="switchDensity('compact')"><i class="fa-solid fa-grip"></i></div>
+                    <div class="density-btn active" data-density="standard" title="标准" onclick="switchDensity('standard')"><i class="fa-solid fa-table-cells"></i></div>
+                    <div class="density-btn" data-density="large" title="大图" onclick="switchDensity('large')"><i class="fa-solid fa-square"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 筛选区 -->
+    <div class="filter-bar" id="filter-bar">
+
+        <!-- Row 1: 任务维度筛选（作用于任务整体） -->
+        <div class="filter-row">
+            <span class="filter-row-label task-scope" title="下列筛选条件作用于任务整体"><i class="fa-solid fa-folder-open" style="font-size:9px; margin-right:3px;"></i>任务</span>
+
+            <div class="filter-item">
+                <span class="filter-label">创建人</span>
+                <div class="creator-filter">
+                    <div class="creator-trigger" id="creator-trigger" onclick="toggleCreatorDd(event)">
+                        <div class="chips-wrap" id="creator-chips"></div>
+                        <i class="fa-solid fa-chevron-down caret"></i>
+                    </div>
+                    <div class="creator-dropdown" id="creator-dropdown">
+                        <div class="creator-dd-search">
+                            <input type="text" placeholder="搜索姓名" oninput="filterCreators(this.value)">
+                        </div>
+                        <div class="creator-dd-list" id="creator-dd-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-item">
+                <span class="filter-label">时间</span>
+                <div class="time-filter-wrap">
+                    <div class="time-filter-trigger" id="tf-trigger" onclick="toggleTimeFilter(event)">
+                        <span class="tf-dim" id="tf-dim-display">创建</span>
+                        <span class="tf-value" id="tf-value-display">最近7天</span>
+                        <i class="fa-solid fa-chevron-down tf-caret"></i>
+                    </div>
+                    <div class="time-filter-panel" id="tf-panel">
+                        <div class="tf-section">
+                            <div class="tf-section-title">时间维度</div>
+                            <div class="tf-dim-switch">
+                                <div class="tf-dim-opt active" data-dim="created" onclick="setTimeDim('created')">创建时间</div>
+                                <div class="tf-dim-opt" data-dim="updated" onclick="setTimeDim('updated')">更新时间</div>
+                            </div>
+                        </div>
+                        <div class="tf-section">
+                            <div class="tf-section-title">快捷选项</div>
+                            <div class="tf-quick-options">
+                                <div class="tf-quick-opt active" data-preset="7d" onclick="setTimePreset('7d')">最近 7 天</div>
+                                <div class="tf-quick-opt" data-preset="30d" onclick="setTimePreset('30d')">最近 30 天</div>
+                                <div class="tf-quick-opt" data-preset="week" onclick="setTimePreset('week')">本周</div>
+                                <div class="tf-quick-opt" data-preset="month" onclick="setTimePreset('month')">本月</div>
+                            </div>
+                        </div>
+                        <div class="tf-section">
+                            <div class="tf-section-title">自定义范围</div>
+                            <div class="tf-custom-range">
+                                <input type="date" id="tf-custom-from" onchange="setTimeCustom()">
+                                <span style="color:#94a3b8;">→</span>
+                                <input type="date" id="tf-custom-to" onchange="setTimeCustom()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-item">
+                <span class="filter-label" title="按任务内「审核通过」或「审核不通过」的图片张数筛选">任务内图片张数</span>
+                <div class="count-filter">
+                    <select class="count-dim" id="f-count-dim" onchange="onCountFilterChange()">
+                        <option value="approved">审核通过</option>
+                        <option value="rejected">审核不通过</option>
+                    </select>
+                    <select class="count-op" id="f-count-op" onchange="onCountFilterChange()">
+                        <option value=">=">≥</option>
+                        <option value="<=">≤</option>
+                        <option value="=">=</option>
+                    </select>
+                    <input type="number" min="0" placeholder="张数" id="f-count-val" oninput="onCountFilterChange()" onkeydown="onCountKey(event)">
+                </div>
+            </div>
+
+            <div class="filter-item">
+                <span class="filter-label">搜索</span>
+                <input type="text" class="filter-input" placeholder="系统SKU / TaskID" oninput="onSearchInput(this.value)" onkeydown="onSearchKey(event)" id="f-search">
+            </div>
+        </div>
+
+        <!-- Row 2: 图片维度筛选（作用于任务下的具体图片） -->
+        <div class="filter-row">
+            <span class="filter-row-label photo-scope" title="下列筛选条件作用于任务下的具体图片"><i class="fa-solid fa-image" style="font-size:9px; margin-right:3px;"></i>图片</span>
+
+            <div class="filter-item">
+                <span class="filter-label">模型</span>
+                <select class="filter-select" id="f-model" onchange="applyFilters()">
+                    <option value="">全部模型</option>
+                    <option value="linkfox">LinkFox</option>
+                    <option value="ziyan">自研</option>
+                    <option value="huiwa">阿里绘蛙</option>
+                </select>
+            </div>
+
+            <div class="filter-item" id="filter-type-wrap">
+                <span class="filter-label">图片类型</span>
+                <select class="filter-select" id="f-type" onchange="applyFilters()">
+                    <option value="">全部类型</option>
+                    <option value="scene">场景图</option>
+                    <option value="whiteClose">特写图-白底</option>
+                    <option value="close">特写图-非白底</option>
+                    <option value="selling">卖点图</option>
+                    <option value="aplus">标准普通A+图</option>
+                </select>
+            </div>
+
+            <div class="filter-item">
+                <span class="filter-label" title="按每张图的侵权禁售检测结果筛选">侵权禁售检测</span>
+                <select class="filter-select" id="f-infringement" onchange="applyFilters()">
+                    <option value="">全部</option>
+                    <option value="passed">通过</option>
+                    <option value="rejected">不通过</option>
+                    <option value="untested">未检测</option>
+                </select>
+            </div>
+
+            <div class="filter-action-group" style="margin-left: auto;">
+                <button class="btn-apply" id="btn-apply" onclick="applyPendingFilters()" title="应用筛选（回车）">
+                    <i class="fa-solid fa-magnifying-glass" style="font-size:10px"></i>
+                    查询
+                    <span class="apply-dot" id="btn-apply-dot" style="display:none;"></span>
+                </button>
+                <button class="filter-reset" onclick="resetFilters()" title="清空并重查">
+                    <i class="fa-solid fa-rotate-left" style="font-size:10px"></i> 重置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="content-area">
+        <div class="view-body" id="photo-body"></div>
+    </div>
+
+    <!-- 分页器 -->
+    <div class="pager" id="pager"></div>
+
+</div>
+
+<script>
+// ======================================================================
+// Mock 数据
+// ======================================================================
+// 组织架构（三层：部门 → 组 → 个人）
+// 一期原型展示完整树，权限规则（谁能看谁）由需求文档说明、研发对接现有权限体系
+// team 标记用于原型两版（美工版/运营版）切换时过滤
+const departments = [
+    // —— 美工部 ——
+    {
+        id: 'dept-art', name: '美工部', team: 'art',
+        groups: [
+            { id: 'grp-design-a',  name: '设计一组' },
+            { id: 'grp-design-b',  name: '设计二组' },
+            { id: 'grp-design-c',  name: '设计三组' },
+            { id: 'grp-motion',    name: '动效组' }
+        ]
+    },
+    // —— 运营部 ——
+    {
+        id: 'dept-ops', name: '运营部', team: 'ops',
+        groups: [
+            { id: 'grp-cate-a',    name: '类目一组' },
+            { id: 'grp-cate-b',    name: '类目二组' },
+            { id: 'grp-selection', name: '选品组' },
+            { id: 'grp-activity',  name: '活动组' }
+        ]
+    }
+];
+
+const users = [
+    // 美工部 · 设计一组
+    { id: 'u1',  name: '徐强',   short: '徐', color: 'blue',   deptId: 'dept-art', groupId: 'grp-design-a' },
+    { id: 'u2',  name: '李梦',   short: '李', color: 'pink',   deptId: 'dept-art', groupId: 'grp-design-a' },
+    { id: 'u3',  name: '王小凡', short: '王', color: 'green',  deptId: 'dept-art', groupId: 'grp-design-a' },
+    // 美工部 · 设计二组
+    { id: 'u4',  name: '张浩然', short: '张', color: 'orange', deptId: 'dept-art', groupId: 'grp-design-b' },
+    { id: 'u5',  name: '赵敏',   short: '赵', color: 'purple', deptId: 'dept-art', groupId: 'grp-design-b' },
+    // 美工部 · 设计三组
+    { id: 'u6',  name: '刘洋',   short: '刘', color: 'cyan',   deptId: 'dept-art', groupId: 'grp-design-c' },
+    { id: 'u7',  name: '陈凯',   short: '陈', color: 'red',    deptId: 'dept-art', groupId: 'grp-design-c' },
+    // 美工部 · 动效组
+    { id: 'u8',  name: '周婷',   short: '周', color: 'amber',  deptId: 'dept-art', groupId: 'grp-motion' },
+
+    // 运营部 · 类目一组
+    { id: 'u9',  name: '林芳',   short: '林', color: 'blue',   deptId: 'dept-ops', groupId: 'grp-cate-a' },
+    { id: 'u10', name: '吴海',   short: '吴', color: 'pink',   deptId: 'dept-ops', groupId: 'grp-cate-a' },
+    // 运营部 · 类目二组
+    { id: 'u11', name: '黄雯',   short: '黄', color: 'green',  deptId: 'dept-ops', groupId: 'grp-cate-b' },
+    { id: 'u12', name: '孙磊',   short: '孙', color: 'orange', deptId: 'dept-ops', groupId: 'grp-cate-b' },
+    // 运营部 · 选品组
+    { id: 'u13', name: '马晨',   short: '马', color: 'purple', deptId: 'dept-ops', groupId: 'grp-selection' },
+    { id: 'u14', name: '何璐',   short: '何', color: 'cyan',   deptId: 'dept-ops', groupId: 'grp-selection' },
+    // 运营部 · 活动组
+    { id: 'u15', name: '郑宇',   short: '郑', color: 'red',    deptId: 'dept-ops', groupId: 'grp-activity' }
+];
+
+// 每一版有各自的"当前登录用户"（美工版=u1 徐强；运营版=u9 林芳）
+const CURRENT_USER_BY_VERSION = { art: 'u1', ops: 'u9' };
+function getCurrentUserId() { return CURRENT_USER_BY_VERSION[state.version] || 'u1'; }
+
+// 获取某用户所属 team（'art' | 'ops'）
+function getUserTeam(userId) {
+    const u = users.find(x => x.id === userId);
+    if (!u) return null;
+    const d = departments.find(x => x.id === u.deptId);
+    return d ? d.team : null;
+}
+// 当前 version 下的所有 user id
+function getTeamUserIds() {
+    return users.filter(u => getUserTeam(u.id) === state.version).map(u => u.id);
+}
+// 当前 version 下的部门
+function getTeamDepartments() {
+    return departments.filter(d => d.team === state.version);
+}
+
+// 运营版专用：店铺名 + ASIN 资源池
+const storePool = [
+    'Amazon-Z01466-UK', 'Amazon-Z00832-US', 'Amazon-Z02198-DE',
+    'Amazon-Z01865-US', 'Amazon-Z02734-JP', 'Amazon-Z00419-FR',
+    'eBay-S00125-UK',   'eBay-S00308-US',   'Walmart-W10047-US',
+    'Shopee-SG-88201'
+];
+function mockAsin(seed) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789'; // 去掉 I O 避免歧义
+    let n = (seed * 2654435761) >>> 0;
+    let out = 'B';
+    for (let i = 0; i < 9; i++) {
+        n = (n * 1103515245 + 12345) >>> 0;
+        out += chars[n % chars.length];
+    }
+    return out;
+}
+
+// 模型（一期只上 LinkFox；自研为二期规划、阿里绘蛙为三期规划；原型提前展示便于评审）
+const models = {
+    linkfox: { name: 'LinkFox',   short: 'LF',    color: 'blue',  phase: 1 },
+    ziyan:   { name: '自研',      short: '自研',  color: 'green', phase: 2 },  // #10b981
+    huiwa:   { name: '阿里绘蛙',  short: '绘蛙',  color: 'orange',phase: 3 }   // #f97316
+};
+
+// 图片类型（5 种）
+const imageTypes = {
+    scene:      { name: '场景图',        short: '场景' },
+    whiteClose: { name: '特写图-白底',   short: '白特' },
+    close:      { name: '特写图-非白底', short: '特写' },
+    selling:    { name: '卖点图',        short: '卖点' },
+    aplus:      { name: '标准普通A+图',  short: '标普A+' }
+};
+
+// 生成较多 Task 数据以展示分页
+const tasks = [];
+const skuTitles = [
+    'VANDOONA 56-Inch Multi-Level Cat Tree Tower with Natural Sisal Scratching Posts Plush Hammock Cozy Condo and Dangling Pom-Poms for Indoor Cats Kittens and Adult Large Cats — Beige Neutral Modern Design',
+    '跨境外贸爆款 2026 新款男士加厚保暖羽绒服冬季户外防风防水连帽休闲短款修身外套多色多码 Amazon Hot Selling Winter Jacket Waterproof Windproof Hooded Puffer Coat',
+    '红色不锈钢保温杯500ml防漏设计', '蓝色加厚防滑瑜伽垫环保 TPE', '户外露营帐篷防水可容纳4人',
+    '陶瓷咖啡杯500ml耐热双层', '意式浓缩咖啡机20Bar高压', '智能运动手表追踪器5ATM防水',
+    '便携式USB充电搅拌机', '男士皮质真皮商务钱包', '多功能创意钥匙扣', '夏季清凉透气网面跑步鞋',
+    '纯棉基本款圆领 T 恤', '无线蓝牙降噪耳机', '儿童益智拼图积木玩具', '北欧风客厅台灯',
+    '女士保暖毛绒拖鞋', '厨房电子秤食物烘焙', '车载手机无线充电支架', '防晒遮阳折叠伞',
+    '户外运动水壶保温保冷', '办公桌收纳整理文具盒',
+    'OFFSCH Flower Pot Covers Double-Sided Foil Insulation Wrap Plant Pot Warm Cover with Hook and Loop Fastener for Outdoor Winter Freeze Protection'
+];
+
+// 生成 45 个任务，分布在 14 个用户
+for (let i = 0; i < 45; i++) {
+    const modelPicks = ['linkfox', 'ziyan', 'huiwa'];
+    const useModels = {};
+    // 每个任务 1-3 个模型
+    const mCount = 1 + (i % 3);
+    for (let j = 0; j < mCount; j++) {
+        useModels[modelPicks[j]] = 4 + ((i + j) % 5) * 2;
+    }
+
+    const planTotal = Object.values(useModels).reduce((a, b) => a + b, 0);
+    const generated = planTotal;
+    const passRatio = i % 7 === 0 ? 0.4 + (i % 10) / 30 : 0.75 + (i % 5) / 25;
+    const approved = Math.floor(generated * passRatio);
+    const rejected = generated - approved;
+
+    const day = 15 + (i % 8);
+    // 商品尺寸 (mock，按 SKU 类型大致给合理数据)
+    const size = {
+        length: 5 + (i % 40),      // cm
+        width:  4 + (i % 30),
+        height: 3 + (i % 25),
+        weight: 50 + (i % 20) * 25  // g
+    };
+
+    // 参考图（固定 5 张，方便原型展示满状态）
+    const references = [];
+    for (let k = 1; k <= 5; k++) {
+        references.push({
+            id: `ref-${i}-${k}`,
+            url: `https://picsum.photos/seed/ref${i * 7 + k * 3}/600/600`
+        });
+    }
+
+    tasks.push({
+        // 任务ID 格式：T + YYYYMMDD + _ + 6位序号（在 forEach 后处理中按 createdAt 日期重写）
+        id: `TMP_${i}`,
+        // 系统SKU：8位纯数字，例如 22062564
+        sku: String(22000000 + (i * 7919 + (i * i) * 47) % 9000000).padStart(8, '0'),
+        // 运营版用：店铺 + ASIN（美工版渲染时不显示）
+        storeName: storePool[i % storePool.length],
+        asin: mockAsin(i + 1),
+        title: skuTitles[i % skuTitles.length],
+        ownerId: users[i % users.length].id,
+        finishedAt: `2026-04-${day} ${10 + (i % 8)}:${String((i * 7) % 60).padStart(2, '0')}:${String((i * 13) % 60).padStart(2, '0')}`,
+        models: useModels,
+        planTotal, generated, approved, rejected,
+        pushed: i % 4 !== 0,
+        size,
+        references
+    });
+}
+
+// ==== mock 超长标题 override：保证默认排序（创建倒序）+ 默认筛选（最近 7 天）下，
+//      列表最靠前的两条任务 tasks[7] 和 tasks[15] 拿到超长标题，便于直接验证标题截断交互 ====
+if (tasks[7])  tasks[7].title  = 'PREMIUM QUALITY Heavy-Duty Industrial-Grade 18/10 Stainless Steel Double-Wall Vacuum Insulated Travel Coffee Tumbler 32oz Extra Large Capacity Leak-Proof Screw-On Lid with Built-In Silicone Straw Cleaning Brush Bottle Scrubber BPA-Free Non-Toxic Keeps Drinks Piping Hot for 12 Hours Ice Cold for 24 Hours Fits Most Standard Car Cup Holders for Men Women Office Home Gym Outdoor Sports Hiking Camping Road Trips — Available in Matte Black Rose Gold Navy Blue Forest Green Burgundy Red Custom Laser Engraving Available Premium Gift Box Packaging';
+if (tasks[15]) tasks[15].title = '【厂家直销·支持定制 LOGO】2026 春夏新款亚马逊爆款跨境外贸独立站热销女士休闲运动瑜伽套装高弹力速干透气健身运动服长袖上衣加紧身裤长裤两件套多色多码 Amazon Bestseller Womens Seamless Activewear Yoga Set High-Stretch Quick-Dry Breathable Workout Fitness Clothing Long-Sleeve Crop Top Plus Butt-Lifting Tummy-Control Compression Leggings Two-Piece Matching Set for Gym Running Pilates Training — Black White Pink Sage Green Lavender Purple Sizes XS S M L XL 2XL 3XL';
+
+// 生成图片 mock 数据
+const photos = [];
+let pidCounter = 0;
+const imgTypeKeys = Object.keys(imageTypes);
+
+// 定义图片类型的排序优先级（矩阵配置的标准顺序）
+const TYPE_ORDER = ['scene', 'whiteClose', 'close', 'selling', 'aplus'];
+
+tasks.forEach(task => {
+    // 每个任务内，为"同 SKU 同类型"的图片累加序号
+    const typeSeqCounter = {};
+
+    // 为任务生成创建时间（比完成时间早 10-60 分钟）
+    const finishedDate = new Date(task.finishedAt.replace(' ', 'T'));
+    const createdOffsetMin = 10 + (tasks.indexOf(task) % 50);
+    const createdDate = new Date(finishedDate.getTime() - createdOffsetMin * 60 * 1000);
+    const createdAtStr = formatDateTime(createdDate);
+    // 更新时间 = 完成时间（任务完成即最后更新），也走 formatDateTime 保持格式一致
+    const updatedAtStr = formatDateTime(finishedDate);
+    task.createdAt = createdAtStr;
+    task.updatedAt = updatedAtStr;
+
+    // 重写任务ID：T + YYYYMMDD（按创建日期） + _ + 6位序号
+    const datePart = createdAtStr.slice(0, 10).replace(/-/g, '');
+    const seq = String(tasks.indexOf(task) + 1).padStart(6, '0');
+    task.id = `T${datePart}_${seq}`;
+
+    Object.entries(task.models).forEach(([modelId, count]) => {
+        for (let i = 0; i < count; i++) {
+            pidCounter++;
+            const typeId = imgTypeKeys[pidCounter % imgTypeKeys.length];
+
+            if (!typeSeqCounter[typeId]) typeSeqCounter[typeId] = 0;
+            typeSeqCounter[typeId]++;
+            const typeIndex = typeSeqCounter[typeId];
+
+            const passRatio = task.approved / task.generated;
+            const isApproved = Math.random() < passRatio;
+
+            // 侵权禁售检测结果：业务上只有"卖点图 (selling)"和"标准普通 A+ 图 (aplus)"
+            // 会进入检测；场景图 / 特写图-白底 / 特写图-非白底 按规则不检测，恒为 untested
+            let infringement;
+            const INFRINGEMENT_CHECKED_TYPES = ['selling', 'aplus'];
+            if (INFRINGEMENT_CHECKED_TYPES.includes(typeId)) {
+                // 命中条件用 % 7 === 3：与 typeId 的 % 5 周期错开，保证 rejected 样本
+                // 能真实落在 selling / aplus 类型上（原先 % 10 === 0 会和 % 5 对齐，
+                // 全部落在 scene 上，导致数据集里实际为 0 张 rejected）
+                if (pidCounter % 7 === 3) {
+                    const reasons = [
+                        '疑似命中"Nike"品牌元素，建议人工复核后使用。',
+                        '检测到疑似受保护卡通形象，建议调整后重新生成。',
+                        '文案中出现受保护商标词"Adidas"，请删除或替换后再使用。'
+                    ];
+                    infringement = { status: 'rejected', detail: reasons[pidCounter % reasons.length] };
+                } else {
+                    infringement = { status: 'passed', detail: '已检测品牌词、图案、文字，未发现侵权风险。' };
+                }
+            } else {
+                // 不检测的类型：场景图、特写图-白底、特写图-非白底
+                infringement = { status: 'untested', detail: '该图片类型按业务规则无需进行侵权禁售检测。' };
+            }
+
+            // 第三方任务 ID + 图片 ID（合并成一串）
+            const thirdPartyTaskId = String(2036000000000000000n + BigInt(pidCounter * 7919));
+            const thirdPartyImgId = String(70000000 + pidCounter * 13);
+            const thirdPartyId = `${thirdPartyTaskId}_${thirdPartyImgId}`;
+
+            photos.push({
+                id: `P${pidCounter}`,
+                taskId: task.id,
+                sku: task.sku,
+                title: task.title,
+                ownerId: task.ownerId,
+                model: modelId,
+                type: typeId,
+                typeIndex,
+                status: isApproved ? 'approved' : 'rejected',
+                pushed: task.pushed && isApproved,
+                createdAt: createdAtStr,
+                updatedAt: updatedAtStr,
+                finishedAt: task.finishedAt,
+                imgUrl: `https://picsum.photos/seed/${pidCounter * 11 + 3}/400/400`,
+                infringement,
+                thirdPartyId
+            });
+        }
+    });
+});
+
+// ==== 保证默认列表首条任务 tasks[7] 有一张侵权禁售检测"不通过"的图片，
+//      让用户打开就能看到 rejected 态的展示（不依赖 % 7 的取模巧合） ====
+if (tasks[7]) {
+    const firstRejectable = photos.find(p =>
+        p.taskId === tasks[7].id && (p.type === 'selling' || p.type === 'aplus')
+    );
+    if (firstRejectable) {
+        firstRejectable.infringement = {
+            status: 'rejected',
+            detail: '疑似命中"Nike"品牌元素：主视觉勾线与品牌 Logo 高度相似，建议人工复核后使用。'
+        };
+    }
+}
+
+// 辅助：日期格式化
+function formatDateTime(d) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// ======================================================================
+// 状态
+// ======================================================================
+const state = {
+    version: 'art',                     // 'art'(美工版) | 'ops'(运营版) — 原型切换标记
+    statusTab: 'all',                   // all | approved | rejected（即时）
+    density: 'standard',                // 即时
+    // 已生效的筛选条件（getFilteredPhotos 消费这个）
+    filters: {
+        creators: [],                   // init 后由 initVersionDefaults 填成当前team所有user
+        model: '',
+        type: '',
+        infringement: '',
+        search: '',
+        countDim: 'approved',
+        countOp: '>=',
+        countVal: ''
+    },
+    // 暂存的筛选条件（用户操作筛选控件时写这里，点查询才复制到 filters）
+    pendingFilters: null,               // init 时 clone from filters
+    pendingDirty: false,                // 是否有未应用的改动
+    creatorSearchKeyword: '',
+    // 分页
+    photoPage: 1,
+    photoPageSize: 20,
+    // 时间筛选（即时生效的真实值）
+    timeDim: 'created',
+    timePreset: '7d',
+    timeCustomFrom: null,
+    timeCustomTo: null,
+    // 时间筛选（pending 暂存）
+    pendingTimeDim: 'created',
+    pendingTimePreset: '7d',
+    pendingTimeCustomFrom: null,
+    pendingTimeCustomTo: null,
+    // 排序（即时）
+    sortDim: 'created',
+    sortOrder: 'desc'
+};
+// pendingFilters init
+state.filters.creators = getTeamUserIds();
+state.pendingFilters = JSON.parse(JSON.stringify(state.filters));
+
+// 深比较两个 filter 对象
+function filtersEqual(a, b) {
+    if (a === b) return true;
+    if (a.creators.length !== b.creators.length) return false;
+    for (let i = 0; i < a.creators.length; i++) {
+        if (!b.creators.includes(a.creators[i])) return false;
+    }
+    return a.model === b.model && a.type === b.type && a.infringement === b.infringement && a.search === b.search
+        && a.countDim === b.countDim && a.countOp === b.countOp && String(a.countVal) === String(b.countVal);
+}
+
+function timeEqual() {
+    return state.pendingTimeDim === state.timeDim
+        && state.pendingTimePreset === state.timePreset
+        && state.pendingTimeCustomFrom === state.timeCustomFrom
+        && state.pendingTimeCustomTo === state.timeCustomTo;
+}
+
+// 任意筛选控件改动后调用：标记 dirty 并刷新查询按钮视觉
+function markPendingDirty() {
+    const dirty = !filtersEqual(state.pendingFilters, state.filters) || !timeEqual();
+    state.pendingDirty = dirty;
+    const btn = document.getElementById('btn-apply');
+    if (btn) btn.classList.toggle('dirty', dirty);
+    const hint = document.getElementById('btn-apply-dot');
+    if (hint) hint.style.display = dirty ? 'inline-block' : 'none';
+}
+
+// 用户点"查询"：把 pending 复制到真实 filters，重置分页，重新渲染
+function applyPendingFilters() {
+    state.filters = JSON.parse(JSON.stringify(state.pendingFilters));
+    state.timeDim = state.pendingTimeDim;
+    state.timePreset = state.pendingTimePreset;
+    state.timeCustomFrom = state.pendingTimeCustomFrom;
+    state.timeCustomTo = state.pendingTimeCustomTo;
+    state.photoPage = 1;
+    state.pendingDirty = false;
+    document.getElementById('btn-apply')?.classList.remove('dirty');
+    const hint = document.getElementById('btn-apply-dot');
+    if (hint) hint.style.display = 'none';
+    renderAll();
+}
+
+// ======================================================================
+// 原型版本切换（仅评审用，研发交付时此函数和页头切换器一并删除）
+// 美工版 ↔ 运营版 两套独立页面，差异只在身份字段和团队范围
+// ======================================================================
+function switchVersion(v) {
+    if (state.version === v) return;
+    state.version = v;
+
+    // 登录者切换 → 展开对应部门，收起其他
+    resetExpandedToCurrentUser();
+
+    // 筛选器 creators 重置为新 team 全选（旧 team 的 id 在新 team 下无意义）
+    const teamIds = getTeamUserIds();
+    state.filters.creators = teamIds.slice();
+    state.pendingFilters.creators = teamIds.slice();
+
+    // 清空搜索（关键字在两版语义完全不同，强制清）
+    state.filters.search = '';
+    state.pendingFilters.search = '';
+    const searchEl = document.getElementById('f-search');
+    if (searchEl) {
+        searchEl.value = '';
+        searchEl.placeholder = v === 'art' ? '系统SKU / TaskID' : '店铺 / ASIN / TaskID';
+    }
+
+    // 软重置：保留 statusTab、时间、排序、密度；分页回到首页
+    state.photoPage = 1;
+    state.pendingDirty = false;
+    document.getElementById('btn-apply')?.classList.remove('dirty');
+    const hint = document.getElementById('btn-apply-dot');
+    if (hint) hint.style.display = 'none';
+
+    // 按钮高亮
+    document.querySelectorAll('.proto-switcher .proto-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.version === v);
+    });
+
+    // 重渲染
+    renderCreatorDd();
+    renderCreatorChips();
+    renderAll();
+}
+
+// ======================================================================
+// Toast
+// ======================================================================
+let toastTimer = null;
+function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-text').textContent = msg;
+    const icon = t.querySelector('i');
+    icon.className = type === 'info' ? 'fa-solid fa-circle-info' : 'fa-solid fa-circle-check';
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ======================================================================
+// 状态 Tab
+// ======================================================================
+function renderStatusTabs() {
+    const base = getPhotosAfterFiltersBeforeStatus();
+    const counts = {
+        all: base.length,
+        approved: base.filter(p => p.status === 'approved').length,
+        rejected: base.filter(p => p.status === 'rejected').length
+    };
+    const tabs = [
+        { id: 'all', name: '全部图片', icon: 'fa-images' },
+        { id: 'approved', name: '通过图片', icon: 'fa-circle-check' },
+        { id: 'rejected', name: '不通过图片', icon: 'fa-circle-xmark' }
+    ];
+    document.getElementById('status-tabs').innerHTML = tabs.map(t => `
+        <div class="status-tab ${state.statusTab === t.id ? 'active' : ''}" data-status="${t.id}" onclick="switchStatusTab('${t.id}')">
+            <i class="fa-solid ${t.icon}"></i>${t.name}
+            <span class="count">${counts[t.id]}</span>
+        </div>
+    `).join('');
+}
+
+function switchStatusTab(id) {
+    state.statusTab = id;
+    state.photoPage = 1;
+    renderStatusTabs();
+    renderContent();
+}
+
+// ======================================================================
+// 创建人筛选
+// ======================================================================
+function toggleCreatorDd(e) {
+    if (e) e.stopPropagation();
+    const dd = document.getElementById('creator-dropdown');
+    const trigger = document.getElementById('creator-trigger');
+    dd.classList.toggle('open');
+    trigger.classList.toggle('open');
+}
+document.addEventListener('click', (e) => {
+    const wrap = document.querySelector('.creator-filter');
+    if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('creator-dropdown').classList.remove('open');
+        document.getElementById('creator-trigger').classList.remove('open');
+    }
+});
+
+function filterCreators(kw) {
+    state.creatorSearchKeyword = kw.toLowerCase();
+    renderCreatorDd();
+}
+
+// 树形展开状态：默认当前用户所在部门展开，其余收起
+const expandedDepts = new Set();
+const expandedGroups = new Set();
+function resetExpandedToCurrentUser() {
+    expandedDepts.clear();
+    expandedGroups.clear();
+    const me = users.find(u => u.id === getCurrentUserId());
+    if (me) expandedDepts.add(me.deptId);
+}
+resetExpandedToCurrentUser();
+
+function toggleDeptExpand(deptId, e) {
+    e.stopPropagation();
+    if (expandedDepts.has(deptId)) expandedDepts.delete(deptId);
+    else expandedDepts.add(deptId);
+    renderCreatorDd();
+}
+function toggleGroupExpand(groupId, e) {
+    e.stopPropagation();
+    if (expandedGroups.has(groupId)) expandedGroups.delete(groupId);
+    else expandedGroups.add(groupId);
+    renderCreatorDd();
+}
+
+// 判断部门/组的选中态：全选/半选/未选
+function getDeptCheckState(deptId) {
+    const usersInDept = users.filter(u => u.deptId === deptId);
+    if (usersInDept.length === 0) return 'none';
+    const selectedCount = usersInDept.filter(u => state.pendingFilters.creators.includes(u.id)).length;
+    if (selectedCount === 0) return 'none';
+    if (selectedCount === usersInDept.length) return 'all';
+    return 'partial';
+}
+function getGroupCheckState(groupId) {
+    const usersInGroup = users.filter(u => u.groupId === groupId);
+    if (usersInGroup.length === 0) return 'none';
+    const selectedCount = usersInGroup.filter(u => state.pendingFilters.creators.includes(u.id)).length;
+    if (selectedCount === 0) return 'none';
+    if (selectedCount === usersInGroup.length) return 'all';
+    return 'partial';
+}
+
+// 勾选/取消部门或组：批量操作其下所有 user
+function toggleDeptSelect(deptId, e) {
+    e.stopPropagation();
+    const usersInDept = users.filter(u => u.deptId === deptId);
+    const state2 = getDeptCheckState(deptId);
+    if (state2 === 'all') {
+        // 取消全部，但至少保留 1 人
+        const remaining = state.pendingFilters.creators.filter(id => !usersInDept.some(u => u.id === id));
+        if (remaining.length === 0) {
+            showToast('至少保留一位创建人', 'info');
+            return;
+        }
+        state.pendingFilters.creators = remaining;
+    } else {
+        // 选中全部（去重）
+        usersInDept.forEach(u => {
+            if (!state.pendingFilters.creators.includes(u.id)) state.pendingFilters.creators.push(u.id);
+        });
+    }
+    renderCreatorDd();
+    renderCreatorChips();
+    markPendingDirty();
+}
+function toggleGroupSelect(groupId, e) {
+    e.stopPropagation();
+    const usersInGroup = users.filter(u => u.groupId === groupId);
+    const state2 = getGroupCheckState(groupId);
+    if (state2 === 'all') {
+        const remaining = state.pendingFilters.creators.filter(id => !usersInGroup.some(u => u.id === id));
+        if (remaining.length === 0) {
+            showToast('至少保留一位创建人', 'info');
+            return;
+        }
+        state.pendingFilters.creators = remaining;
+    } else {
+        usersInGroup.forEach(u => {
+            if (!state.pendingFilters.creators.includes(u.id)) state.pendingFilters.creators.push(u.id);
+        });
+    }
+    renderCreatorDd();
+    renderCreatorChips();
+    markPendingDirty();
+}
+
+function renderCreatorDd() {
+    const list = document.getElementById('creator-dd-list');
+    const kw = state.creatorSearchKeyword;
+    const selected = state.pendingFilters.creators;
+
+    // 搜索时：命中用户所在的部门、组自动展开
+    const searchExpanded = { depts: new Set(), groups: new Set() };
+    if (kw) {
+        users.forEach(u => {
+            if (u.name.toLowerCase().includes(kw)) {
+                searchExpanded.depts.add(u.deptId);
+                searchExpanded.groups.add(u.groupId);
+            }
+        });
+    }
+    const isDeptOpen = d => kw ? searchExpanded.depts.has(d.id) : expandedDepts.has(d.id);
+    const isGroupOpen = g => kw ? searchExpanded.groups.has(g.id) : expandedGroups.has(g.id);
+
+    let html = '';
+    getTeamDepartments().forEach(dept => {
+        const deptUsers = users.filter(u => u.deptId === dept.id);
+        const deptSel = getDeptCheckState(dept.id);
+        const deptVisible = !kw || deptUsers.some(u => u.name.toLowerCase().includes(kw));
+        if (!deptVisible) return;
+        const deptOpen = isDeptOpen(dept);
+        html += `
+            <div class="tree-node tree-dept">
+                <div class="tree-row tree-row-dept" onclick="toggleDeptExpand('${dept.id}', event)">
+                    <i class="tree-chevron fa-solid fa-chevron-${deptOpen ? 'down' : 'right'}"></i>
+                    <div class="tree-chk ${deptSel}" onclick="toggleDeptSelect('${dept.id}', event)"></div>
+                    <i class="fa-solid fa-building tree-icon-dept"></i>
+                    <span class="tree-name">${dept.name}</span>
+                    <span class="tree-count">${deptUsers.filter(u => selected.includes(u.id)).length}/${deptUsers.length}</span>
+                </div>
+                ${deptOpen ? dept.groups.map(g => {
+                    const gUsers = users.filter(u => u.groupId === g.id);
+                    const gSel = getGroupCheckState(g.id);
+                    const gVisible = !kw || gUsers.some(u => u.name.toLowerCase().includes(kw));
+                    if (!gVisible) return '';
+                    const gOpen = isGroupOpen(g);
+                    return `
+                        <div class="tree-node tree-group">
+                            <div class="tree-row tree-row-group" onclick="toggleGroupExpand('${g.id}', event)">
+                                <i class="tree-chevron fa-solid fa-chevron-${gOpen ? 'down' : 'right'}"></i>
+                                <div class="tree-chk ${gSel}" onclick="toggleGroupSelect('${g.id}', event)"></div>
+                                <i class="fa-solid fa-users tree-icon-group"></i>
+                                <span class="tree-name">${g.name}</span>
+                                <span class="tree-count">${gUsers.filter(u => selected.includes(u.id)).length}/${gUsers.length}</span>
+                            </div>
+                            ${gOpen ? gUsers.filter(u => !kw || u.name.toLowerCase().includes(kw)).map(u => {
+                                const sel = selected.includes(u.id);
+                                const highlight = kw && u.name.toLowerCase().includes(kw);
+                                return `
+                                    <div class="tree-row tree-row-user ${sel ? 'selected' : ''} ${highlight ? 'highlight' : ''}" onclick="toggleCreatorInDd('${u.id}', event)">
+                                        <span class="tree-indent"></span>
+                                        <div class="tree-chk ${sel ? 'all' : 'none'}"></div>
+                                        <div class="user-avatar sm" data-color="${u.color}">${u.short}</div>
+                                        <span class="tree-name">${u.name}${u.id === getCurrentUserId() ? ' <span class="is-me-tag">我</span>' : ''}</span>
+                                    </div>
+                                `;
+                            }).join('') : ''}
+                        </div>
+                    `;
+                }).join('') : ''}
+            </div>
+        `;
+    });
+    if (!html) html = '<div style="padding: 16px; text-align: center; color: #94a3b8; font-size: 12px;">无匹配结果</div>';
+    list.innerHTML = html;
+}
+
+function toggleCreatorInDd(uid, e) {
+    e.stopPropagation();
+    const idx = state.pendingFilters.creators.indexOf(uid);
+    if (idx >= 0) {
+        if (state.pendingFilters.creators.length > 1) state.pendingFilters.creators.splice(idx, 1);
+        else return showToast('至少保留一位创建人', 'info');
+    } else {
+        state.pendingFilters.creators.push(uid);
+    }
+    renderCreatorDd();
+    renderCreatorChips();
+    markPendingDirty();
+}
+
+function renderCreatorChips() {
+    const chipsWrap = document.getElementById('creator-chips');
+    const selected = state.pendingFilters.creators;
+    if (selected.length === users.length) {
+        chipsWrap.innerHTML = '<span class="placeholder">全部创建人</span>';
+        return;
+    }
+    if (selected.length === 0) {
+        chipsWrap.innerHTML = '<span class="placeholder">未选择</span>';
+        return;
+    }
+
+    // 智能折叠：检查有没有"整组被选中"、"整部门被选中"
+    // 超过 5 个 chip 时折叠为 "XX组 等 N 人" 的简称
+    const MAX_CHIPS = 5;
+
+    // 先找出"整组被全选"的组
+    const fullySelectedGroups = [];
+    getTeamDepartments().forEach(d => d.groups.forEach(g => {
+        const gUsers = users.filter(u => u.groupId === g.id);
+        if (gUsers.length >= 2 && gUsers.every(u => selected.includes(u.id))) {
+            fullySelectedGroups.push({ group: g, users: gUsers });
+        }
+    }));
+
+    // 整部门全选时，也用一个 chip 代替
+    const fullySelectedDepts = [];
+    getTeamDepartments().forEach(d => {
+        const dUsers = users.filter(u => u.deptId === d.id);
+        if (dUsers.length >= 2 && dUsers.every(u => selected.includes(u.id))) {
+            fullySelectedDepts.push({ dept: d, users: dUsers });
+        }
+    });
+
+    // 去重：如果某组的所有人都已经通过"部门全选"覆盖了，该组 chip 就不重复显示
+    const deptUserIds = new Set(fullySelectedDepts.flatMap(x => x.users.map(u => u.id)));
+    const groupChipsFinal = fullySelectedGroups.filter(x => !x.users.every(u => deptUserIds.has(u.id)));
+    const aggregatedUserIds = new Set([
+        ...fullySelectedDepts.flatMap(x => x.users.map(u => u.id)),
+        ...groupChipsFinal.flatMap(x => x.users.map(u => u.id))
+    ]);
+    const looseUsers = selected.filter(id => !aggregatedUserIds.has(id)).map(id => users.find(u => u.id === id)).filter(Boolean);
+
+    // 总 chip 数估算
+    const totalChips = fullySelectedDepts.length + groupChipsFinal.length + looseUsers.length;
+
+    let html = '';
+    if (totalChips <= MAX_CHIPS) {
+        // 全展开
+        fullySelectedDepts.forEach(x => {
+            html += `<span class="creator-chip chip-agg"><i class="fa-solid fa-building" style="font-size:9px;"></i>${x.dept.name} <span style="opacity:.7;font-size:10px;">${x.users.length}人</span></span>`;
+        });
+        groupChipsFinal.forEach(x => {
+            html += `<span class="creator-chip chip-agg"><i class="fa-solid fa-users" style="font-size:9px;"></i>${x.group.name} <span style="opacity:.7;font-size:10px;">${x.users.length}人</span></span>`;
+        });
+        looseUsers.forEach(u => {
+            html += `<span class="creator-chip"><div class="user-avatar xs" data-color="${u.color}">${u.short}</div>${u.name}<span class="x" onclick="event.stopPropagation(); removeCreator('${u.id}')"><i class="fa-solid fa-xmark"></i></span></span>`;
+        });
+    } else {
+        // 折叠：显示前 2 个聚合 chip + 其余合并
+        const firstAgg = [...fullySelectedDepts.map(x => ({ type: 'dept', name: x.dept.name, count: x.users.length })),
+                          ...groupChipsFinal.map(x => ({ type: 'group', name: x.group.name, count: x.users.length }))];
+        const shown = firstAgg.slice(0, 2);
+        shown.forEach(x => {
+            html += `<span class="creator-chip chip-agg"><i class="fa-solid fa-${x.type === 'dept' ? 'building' : 'users'}" style="font-size:9px;"></i>${x.name} <span style="opacity:.7;font-size:10px;">${x.count}人</span></span>`;
+        });
+        const remaining = selected.length - shown.reduce((s, x) => s + x.count, 0);
+        if (remaining > 0) {
+            html += `<span style="font-size:11px;color:#64748b;padding:0 4px;">等 ${selected.length} 人</span>`;
+        }
+    }
+    chipsWrap.innerHTML = html;
+}
+
+function removeCreator(uid) {
+    if (state.pendingFilters.creators.length > 1) {
+        state.pendingFilters.creators = state.pendingFilters.creators.filter(x => x !== uid);
+        renderCreatorDd();
+        renderCreatorChips();
+        markPendingDirty();
+    }
+}
+
+// ======================================================================
+// 筛选（pending 模型：写入 pendingFilters，点"查询"才应用）
+// ======================================================================
+function applyFilters() {
+    state.pendingFilters.model = document.getElementById('f-model').value;
+    state.pendingFilters.type = document.getElementById('f-type').value;
+    state.pendingFilters.infringement = document.getElementById('f-infringement').value;
+    markPendingDirty();
+}
+
+// 张数筛选
+function onCountFilterChange() {
+    state.pendingFilters.countDim = document.getElementById('f-count-dim').value;
+    state.pendingFilters.countOp = document.getElementById('f-count-op').value;
+    state.pendingFilters.countVal = document.getElementById('f-count-val').value;
+    markPendingDirty();
+}
+
+// 搜索框：不即时触发，写入 pending 即可；回车时触发 applyPendingFilters
+function onSearchInput(v) {
+    state.pendingFilters.search = v;
+    markPendingDirty();
+}
+function onSearchKey(e) {
+    if (e.key === 'Enter') applyPendingFilters();
+}
+function onCountKey(e) {
+    if (e.key === 'Enter') applyPendingFilters();
+}
+
+function resetFilters() {
+    const defaults = {
+        creators: getTeamUserIds(),
+        model: '', type: '', infringement: '', search: '',
+        countDim: 'approved', countOp: '>=', countVal: ''
+    };
+    // 同步清空 pending 和 filters
+    state.pendingFilters = JSON.parse(JSON.stringify(defaults));
+    state.filters = JSON.parse(JSON.stringify(defaults));
+    // 时间也回到默认
+    state.pendingTimeDim = state.timeDim = 'created';
+    state.pendingTimePreset = state.timePreset = '7d';
+    state.pendingTimeCustomFrom = state.timeCustomFrom = null;
+    state.pendingTimeCustomTo = state.timeCustomTo = null;
+    state.statusTab = 'all';
+    state.photoPage = 1;
+    // UI 控件回到默认
+    document.getElementById('f-model').value = '';
+    document.getElementById('f-type').value = '';
+    document.getElementById('f-infringement').value = '';
+    document.getElementById('f-search').value = '';
+    document.getElementById('f-count-dim').value = 'approved';
+    document.getElementById('f-count-op').value = '>=';
+    document.getElementById('f-count-val').value = '';
+    renderCreatorChips();
+    renderCreatorDd();
+    // 刷新时间筛选面板显示
+    if (typeof updateTimeFilterDisplay === 'function') updateTimeFilterDisplay();
+    // 清除 dirty 态
+    state.pendingDirty = false;
+    document.getElementById('btn-apply')?.classList.remove('dirty');
+    const hint = document.getElementById('btn-apply-dot');
+    if (hint) hint.style.display = 'none';
+    renderAll();
+    showToast('已重置并重查');
+}
+
+// ======================================================================
+// 数据过滤
+// ======================================================================
+// 任务级筛选（张数）
+function taskPassesTaskLevelFilters(t) {
+    const { filters } = state;
+    // 张数条件
+    if (filters.countVal !== '' && filters.countVal !== null && !isNaN(filters.countVal)) {
+        const n = Number(filters.countVal);
+        const v = filters.countDim === 'approved' ? t.approved : t.rejected;
+        if (filters.countOp === '>=' && !(v >= n)) return false;
+        if (filters.countOp === '<=' && !(v <= n)) return false;
+        if (filters.countOp === '=' && !(v === n)) return false;
+    }
+    return true;
+}
+
+function getPhotosAfterFiltersBeforeStatus() {
+    const { filters } = state;
+    const { from, to } = getTimeRange();
+    // 先算出被任务级筛选排除的 taskId
+    const excludedTaskIds = new Set(
+        tasks.filter(t => !taskPassesTaskLevelFilters(t)).map(t => t.id)
+    );
+    // 任务id → 任务（加速店铺/ASIN搜索）
+    const taskById = new Map(tasks.map(t => [t.id, t]));
+    return photos.filter(p => {
+        // 原型：按当前版本的team过滤（美工版只看美工部任务，运营版只看运营部任务）
+        if (getUserTeam(p.ownerId) !== state.version) return false;
+        if (excludedTaskIds.has(p.taskId)) return false;
+        if (!filters.creators.includes(p.ownerId)) return false;
+        if (filters.model && p.model !== filters.model) return false;
+        if (filters.type && p.type !== filters.type) return false;
+        if (filters.infringement && (p.infringement?.status || 'untested') !== filters.infringement) return false;
+        if (filters.search) {
+            // 精确匹配（大小写不敏感，前后空格trim）：关键字必须与某字段完整相等才命中，不支持模糊/部分
+            const kw = filters.search.toLowerCase().trim();
+            if (kw) {
+                const t = taskById.get(p.taskId);
+                // 搜索范围：美工版 = 系统SKU + TaskID；运营版 = 店铺 + ASIN + TaskID
+                const fields = state.version === 'art'
+                    ? [p.sku, p.taskId]
+                    : [t && t.storeName, t && t.asin, p.taskId];
+                const hit = fields.some(f => f && f.toLowerCase() === kw);
+                if (!hit) return false;
+            }
+        }
+        const timeField = state.timeDim === 'created' ? p.createdAt : p.updatedAt;
+        if (timeField < from || timeField > to) return false;
+        return true;
+    });
+}
+
+function getFilteredPhotos() {
+    let base = getPhotosAfterFiltersBeforeStatus();
+    if (state.statusTab !== 'all') base = base.filter(p => p.status === state.statusTab);
+    return base;
+}
+
+// ======================================================================
+// 密度
+// ======================================================================
+function switchDensity(d) {
+    state.density = d;
+    document.querySelectorAll('#density-seg .density-btn').forEach(el => el.classList.toggle('active', el.dataset.density === d));
+    renderContent();
+}
+
+// ======================================================================
+// 时间筛选器
+// ======================================================================
+function toggleTimeFilter(e) {
+    if (e) e.stopPropagation();
+    const panel = document.getElementById('tf-panel');
+    const trigger = document.getElementById('tf-trigger');
+    panel.classList.toggle('open');
+    trigger.classList.toggle('open');
+}
+
+document.addEventListener('click', (e) => {
+    const wrap = document.querySelector('.time-filter-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('tf-panel').classList.remove('open');
+        document.getElementById('tf-trigger').classList.remove('open');
+    }
+});
+
+function setTimeDim(dim) {
+    state.pendingTimeDim = dim;
+    document.querySelectorAll('.tf-dim-opt').forEach(el => el.classList.toggle('active', el.dataset.dim === dim));
+    document.getElementById('tf-dim-display').textContent = dim === 'created' ? '创建' : '更新';
+    updateTimeValueDisplay();
+    markPendingDirty();
+}
+
+function setTimePreset(preset) {
+    state.pendingTimePreset = preset;
+    document.querySelectorAll('.tf-quick-opt').forEach(el => el.classList.toggle('active', el.dataset.preset === preset));
+    document.getElementById('tf-custom-from').value = '';
+    document.getElementById('tf-custom-to').value = '';
+    state.pendingTimeCustomFrom = null;
+    state.pendingTimeCustomTo = null;
+    updateTimeValueDisplay();
+    markPendingDirty();
+}
+
+function setTimeCustom() {
+    const from = document.getElementById('tf-custom-from').value;
+    const to = document.getElementById('tf-custom-to').value;
+    if (!from || !to) return;
+    state.pendingTimeCustomFrom = from;
+    state.pendingTimeCustomTo = to;
+    state.pendingTimePreset = 'custom';
+    document.querySelectorAll('.tf-quick-opt').forEach(el => el.classList.remove('active'));
+    updateTimeValueDisplay();
+    markPendingDirty();
+}
+
+function updateTimeValueDisplay() {
+    const display = document.getElementById('tf-value-display');
+    const presetLabel = {
+        '7d': '最近 7 天',
+        '30d': '最近 30 天',
+        'week': '本周',
+        'month': '本月',
+        'custom': state.pendingTimeCustomFrom && state.pendingTimeCustomTo
+            ? `${state.pendingTimeCustomFrom} ~ ${state.pendingTimeCustomTo}`
+            : '自定义'
+    }[state.pendingTimePreset];
+    display.textContent = presetLabel;
+}
+
+// resetFilters 调用：同步把面板 UI 也更新到默认态
+function updateTimeFilterDisplay() {
+    document.querySelectorAll('.tf-dim-opt').forEach(el => el.classList.toggle('active', el.dataset.dim === state.pendingTimeDim));
+    document.querySelectorAll('.tf-quick-opt').forEach(el => el.classList.toggle('active', el.dataset.preset === state.pendingTimePreset));
+    document.getElementById('tf-dim-display').textContent = state.pendingTimeDim === 'created' ? '创建' : '更新';
+    document.getElementById('tf-custom-from').value = state.pendingTimeCustomFrom || '';
+    document.getElementById('tf-custom-to').value = state.pendingTimeCustomTo || '';
+    updateTimeValueDisplay();
+}
+
+function getTimeRange() {
+    const now = new Date('2026-04-22T23:59:59');
+    let from, to;
+    if (state.timePreset === 'custom' && state.timeCustomFrom && state.timeCustomTo) {
+        return {
+            from: state.timeCustomFrom + ' 00:00',
+            to: state.timeCustomTo + ' 23:59'
+        };
+    }
+    if (state.timePreset === '7d') {
+        from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        to = now;
+    } else if (state.timePreset === '30d') {
+        from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        to = now;
+    } else if (state.timePreset === 'week') {
+        const day = now.getDay() || 7;
+        from = new Date(now);
+        from.setDate(now.getDate() - day + 1);
+        from.setHours(0, 0, 0, 0);
+        to = now;
+    } else if (state.timePreset === 'month') {
+        from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+        to = now;
+    }
+    return {
+        from: formatDateTime(from),
+        to: formatDateTime(to)
+    };
+}
+
+// ======================================================================
+// 排序
+// ======================================================================
+function applySort() {
+    state.sortDim = document.getElementById('sort-dim').value;
+    renderContent();
+}
+
+function toggleSortOrder() {
+    state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+    const icon = document.querySelector('#sort-order-btn i');
+    icon.className = state.sortOrder === 'desc'
+        ? 'fa-solid fa-arrow-down-wide-short'
+        : 'fa-solid fa-arrow-up-wide-short';
+    renderContent();
+}
+
+// 通用排序比较器（应用于筛选后的数据）
+function sortCompare(aTime, bTime) {
+    const cmp = aTime.localeCompare(bTime);
+    return state.sortOrder === 'desc' ? -cmp : cmp;
+}
+
+// ======================================================================
+// 打开沉浸式大屏查看（L3 全屏弹窗）
+// ======================================================================
+// 【说明】沉浸式大屏查看（L3）是产品既有功能（现网已上线），
+// 以全屏模态弹窗形式覆盖在当前列表页之上，不是路由跳转 / 新开页面。
+// 本页不重绘该弹窗；列表图片点击后直接复用现有 L3 组件。
+// 此处为调用桩：研发对接时替换为真正的打开 L3 弹窗的调用即可。
+function openImmersiveL3(photoId) {
+    const p = photos.find(x => x.id === photoId);
+    if (!p) return;
+    const t = imageTypes[p.type];
+    const label = `${p.sku} · ${t.name}-${p.typeIndex}`;
+    showToast(`已打开沉浸式大屏查看 · ${label}`);
+    // 真实实现示意：
+    // openImmersiveL3({ photoId, taskId: p.taskId, readonly: true });
+}
+
+
+// ======================================================================
+// 渲染图片视图
+// ======================================================================
+function renderPhotoView() {
+    const filtered = getFilteredPhotos();
+    const body = document.getElementById('photo-body');
+
+    if (filtered.length === 0) {
+        body.innerHTML = `<div class="empty-state">
+            <i class="fa-solid fa-image"></i>
+            <div class="msg">当前筛选下没有图片</div>
+            <div class="sub">试试调整筛选条件</div>
+        </div>`;
+        return;
+    }
+
+    // 多级排序：按当前排序维度 → 同任务聚合 → 类型顺序 → 类型序号
+    const sorted = [...filtered].sort((a, b) => {
+        const tA = tasks.find(t => t.id === a.taskId);
+        const tB = tasks.find(t => t.id === b.taskId);
+        // 一级：按排序维度（创建/更新时间 + 升/降序）—— 方案 A：不强制 SKU 聚合
+        const timeA = state.sortDim === 'created' ? tA.createdAt : tA.updatedAt;
+        const timeB = state.sortDim === 'created' ? tB.createdAt : tB.updatedAt;
+        if (timeA !== timeB) return sortCompare(timeA, timeB);
+        // 二级：同任务的图一定相邻（任务是列表的分组单位）
+        if (a.taskId !== b.taskId) return a.taskId.localeCompare(b.taskId);
+        // 三级：类型顺序
+        const tiA = TYPE_ORDER.indexOf(a.type);
+        const tiB = TYPE_ORDER.indexOf(b.type);
+        if (tiA !== tiB) return tiA - tiB;
+        // 四级：类型内序号
+        return a.typeIndex - b.typeIndex;
+    });
+
+    // 先全量按任务聚合（每个任务完整在一起）
+    const allTaskGroups = [];
+    let curGroup = null;
+    sorted.forEach(p => {
+        if (!curGroup || curGroup.taskId !== p.taskId) {
+            curGroup = { taskId: p.taskId, sku: p.sku, title: p.title, photos: [] };
+            allTaskGroups.push(curGroup);
+        }
+        curGroup.photos.push(p);
+    });
+
+    // 按任务分页：每页 N 个任务，不跨页
+    const totalTaskCount = allTaskGroups.length;
+    const startIdx = (state.photoPage - 1) * state.photoPageSize;
+    const endIdx = startIdx + state.photoPageSize;
+    const taskGroups = allTaskGroups.slice(startIdx, endIdx);
+    const currentPagePhotoCount = taskGroups.reduce((s, g) => s + g.photos.length, 0);
+
+    const sortHint = {
+        'created-desc': '创建时间倒序',
+        'created-asc': '创建时间正序',
+        'updated-desc': '更新时间倒序',
+        'updated-asc': '更新时间正序'
+    }[`${state.sortDim}-${state.sortOrder}`];
+
+    let html = `
+        <div style="margin-bottom: 10px; font-size: 12px; color: #64748b; display:flex; justify-content: space-between; align-items:center;">
+            <span>列表共 <strong style="color:#0f172a">${totalTaskCount}</strong> 个任务 · 当前页 <strong style="color:#0f172a">${taskGroups.length}</strong> 个任务（共 <strong style="color:#0f172a">${currentPagePhotoCount}</strong> 张图）</span>
+            <span style="color:#94a3b8; font-size: 10px;"><i class="fa-solid fa-sort-down mr-1"></i>${sortHint} · 同任务聚合 · 类型顺序</span>
+        </div>
+    `;
+
+    taskGroups.forEach(g => {
+        const task = tasks.find(t => t.id === g.taskId);
+        const owner = task ? users.find(u => u.id === task.ownerId) : null;
+        // 右上角统计：基于任务的真实全量图片（不受状态 Tab / 模型 / 类型等筛选影响）
+        const taskAllPhotos = photos.filter(p => p.taskId === g.taskId);
+        const groupTotal = taskAllPhotos.length;
+        const groupApproved = taskAllPhotos.filter(p => p.status === 'approved').length;
+        const groupRejected = taskAllPhotos.filter(p => p.status === 'rejected').length;
+
+        // 尺寸格式化（只有长宽高，无重量）
+        const sizeStr = task && task.size
+            ? `${task.size.length} × ${task.size.width} × ${task.size.height} cm`
+            : '—';
+
+        // 身份字段：美工版=系统SKU / 运营版=店铺 + ASIN
+        const identityHtml = state.version === 'art'
+            ? `<span class="k">系统SKU</span><span class="task-divider-sku">${g.sku}</span>`
+            : `<span class="k">店铺</span><span class="task-divider-sku">${task ? task.storeName : '—'}</span>`
+            + `<span class="k">ASIN</span><span class="task-divider-sku">${task ? task.asin : '—'}</span>`;
+
+        html += `
+            <div class="task-divider">
+                <div class="task-divider-row1">
+                    <div class="task-divider-left">
+                        <span class="task-divider-taskid">${g.taskId}</span>
+                        ${identityHtml}
+                        <span class="k">标题</span>
+                        <span class="task-divider-title" title="${g.title}">${g.title}</span>
+                    </div>
+                    <span class="task-divider-stats">
+                        共 <strong>${groupTotal}</strong> ·
+                        <span style="color:#16a34a">✓ ${groupApproved}</span>
+                        ${groupRejected > 0 ? `· <span style="color:#dc2626">✕ ${groupRejected}</span>` : ''}
+                    </span>
+                </div>
+                <div class="task-divider-row2">
+                    ${owner ? `<span class="task-divider-meta"><span class="k">创建人</span><span class="v" style="font-family: inherit;">${owner.name}</span></span>` : ''}
+                    ${task ? `<span class="task-divider-meta"><span class="k">创建</span><span class="v">${task.createdAt}</span></span>` : ''}
+                    ${task ? `<span class="task-divider-meta"><span class="k">更新</span><span class="v">${task.updatedAt}</span></span>` : ''}
+                    <span class="task-divider-meta size-meta"><span class="k">尺寸</span><span class="v">${sizeStr}</span></span>
+                </div>
+            </div>
+            <div class="photo-grid density-${state.density}">
+                ${g.photos.map(renderCard).join('')}
+            </div>
+        `;
+    });
+
+    body.innerHTML = html;
+}
+
+function renderCard(p) {
+    const m = models[p.model];
+    const t = imageTypes[p.type];
+
+    // 类型 + 序号，例如"场景图-1"
+    const typeWithIndex = `${t.name}-${p.typeIndex}`;
+
+    return `
+        <div class="photo-card" data-pid="${p.id}" onclick="openImmersiveL3('${p.id}')" title="${typeWithIndex}">
+            <div class="photo-thumb">
+                <img src="${p.imgUrl}" loading="lazy" alt="">
+                <div class="thumb-top-right">
+                    <span class="model-badge" data-color="${m.color}">${m.short}</span>
+                    <span class="status-badge ${p.status}">
+                        <i class="fa-solid ${p.status === 'approved' ? 'fa-check' : 'fa-xmark'}"></i>
+                    </span>
+                </div>
+                <div class="hover-mask" onclick="event.stopPropagation(); openImmersiveL3('${p.id}')">
+                    <button onclick="event.stopPropagation(); openImmersiveL3('${p.id}')"><i class="fa-solid fa-expand"></i>沉浸大屏</button>
+                </div>
+            </div>
+            <div class="photo-meta">
+                <span class="type-label">${typeWithIndex}</span>
+            </div>
+        </div>
+    `;
+}
+
+// ======================================================================
+// 分页器
+// ======================================================================
+function renderPager() {
+    const pager = document.getElementById('pager');
+    // 图片视图按任务分页：totalCount 是筛选后的任务个数
+    let currentPage = state.photoPage;
+    const pageSize = state.photoPageSize;
+    const allPhotos = getFilteredPhotos();
+    const taskSet = new Set(allPhotos.map(p => p.taskId));
+    const totalCount = taskSet.size;
+    const onPageChange = 'setPhotoPage';
+    const onSizeChange = 'setPhotoPageSize';
+    const unitLabel = '个任务';
+
+    pager.style.display = 'flex';
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, totalCount);
+
+    // 页码按钮逻辑：当前页两侧各 1 个，加首末页和省略号
+    const pageButtons = [];
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pageButtons.push(i);
+    } else {
+        pageButtons.push(1);
+        if (currentPage > 3) pageButtons.push('...');
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pageButtons.push(i);
+        if (currentPage < totalPages - 2) pageButtons.push('...');
+        pageButtons.push(totalPages);
+    }
+
+    const pageSizeOpts = [10, 20, 50];
+
+    pager.innerHTML = `
+        <div class="pager-info">
+            <span>共 <strong>${totalCount}</strong> ${unitLabel} · 第 <strong>${currentPage}</strong> / ${totalPages} 页</span>
+            <span style="color:#94a3b8">${start}-${end}</span>
+            <span style="display:inline-flex; align-items:center; gap:4px;">
+                <span style="color:#64748b; font-size: 10px;">每页</span>
+                <select class="page-size-select" onchange="${onSizeChange}(this.value)">
+                    ${pageSizeOpts.map(n => `<option value="${n}" ${pageSize === n ? 'selected' : ''}>${n}</option>`).join('')}
+                </select>
+            </span>
+        </div>
+        <div class="pager-controls">
+            <button class="pager-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="${onPageChange}(1)" title="首页"><i class="fa-solid fa-angles-left text-[10px]"></i></button>
+            <button class="pager-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="${onPageChange}(${currentPage - 1})" title="上一页"><i class="fa-solid fa-angle-left text-[10px]"></i></button>
+            ${pageButtons.map(p => {
+                if (p === '...') return `<span class="pager-btn ellipsis">…</span>`;
+                return `<button class="pager-btn ${p === currentPage ? 'active' : ''}" onclick="${onPageChange}(${p})">${p}</button>`;
+            }).join('')}
+            <button class="pager-btn" ${currentPage >= totalPages ? 'disabled' : ''} onclick="${onPageChange}(${currentPage + 1})" title="下一页"><i class="fa-solid fa-angle-right text-[10px]"></i></button>
+            <button class="pager-btn" ${currentPage >= totalPages ? 'disabled' : ''} onclick="${onPageChange}(${totalPages})" title="末页"><i class="fa-solid fa-angles-right text-[10px]"></i></button>
+            <span class="pager-jump">
+                跳转 <input type="number" min="1" max="${totalPages}" onkeydown="if(event.key==='Enter') ${onPageChange}(+this.value)" placeholder="${currentPage}">
+            </span>
+        </div>
+    `;
+}
+
+function setPhotoPage(p) { state.photoPage = Math.max(1, parseInt(p) || 1); renderContent(); renderPager(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function setPhotoPageSize(s) { state.photoPageSize = parseInt(s); state.photoPage = 1; renderContent(); renderPager(); }
+
+// ======================================================================
+// 主渲染
+// ======================================================================
+function renderContent() {
+    renderStatusTabs();
+    renderPhotoView();
+}
+
+function renderAll() {
+    renderContent();
+    renderPager();
+}
+
+// ======================================================================
+// 启动
+// ======================================================================
+renderCreatorDd();
+renderCreatorChips();
+renderAll();
+</script>
+
+</body>
+</html>
