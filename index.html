@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI生图-查看已完成生图</title>
+    <title>查看已完成生图</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -1642,7 +1642,7 @@ function openImmersiveL3(photoId) {
     if (!p) return;
     const t = imageTypes[p.type];
     const label = `${p.sku} · ${t.name}-${p.typeIndex}`;
-    showToast(`已打开沉浸式大屏查看 · ${label}`);
+    showToast(`已有功能此处不再重画，点击打开沉浸大屏即可 · ${label}`);
     // 真实实现示意：
     // openImmersiveL3({ photoId, taskId: p.taskId, readonly: true });
 }
