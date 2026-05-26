@@ -352,9 +352,9 @@
 
 #### （b）主列表数据也受可见范围约束（后端强约束）
 
-即使前端请求里没传 `creatorIds`，后端也**必须**只返回可见范围内的任务/图片。
+即使前端未传创建人筛选条件，后端也**必须**只返回当前用户可见范围内的任务/图片。
 
-即使前端传的 `creatorIds` 里包含越界 ID（理论上只会在接口被直接调用时发生），后端也**必须**返回 400 错误，不返回列表数据。
+即使请求条件里包含当前用户不可见的创建人，后端也**必须**返回错误，不返回列表数据。
 
 **这是后端兜底约束，不能依赖前端约束来保证安全。**
 
@@ -678,225 +678,7 @@
 
 ---
 
-## 7. 数据模型（供后端设计参考）
-
-> 本节只列出与本页相关的关键字段，不是完整 schema；具体字段类型和索引由后端自行设计。
-
-### 7.1 Task（任务）
-
-```plaintext
-{
-  id: string,           // 格式: T + YYYYMMDD + _ + 6位序号, e.g. "T20260324_000001"
-  system: "art" | "ops", // 归属系统（支持本页区分两套）
-  ownerId: string,       // 创建人 ID
-  sku: string,           // 系统SKU（8位数字，例 "22062564"）。两版都有这个字段，但只在美工版页面展示
-  storeName: string,     // 运营版：店铺名（例 "Amazon-Z01466-UK"）。美工版任务该字段为空或 null
-  asin: string,          // 运营版：ASIN（例 "B08DNRKJX7"）。美工版任务该字段为空或 null
-  title: string,         // 商品标题
-  status: "completed" | "running" | "failed" | "pending_review" | ...,
-                         // 本页只查 completed
-  createdAt: datetime,
-  updatedAt: datetime,
-  finishedAt: datetime,
-  models: { [modelId: string]: int },  // 每个模型计划生成张数
-  planTotal: int,        // 计划总张数
-  generated: int,        // 实际已生成张数
-  approved: int,         // 人工审核通过张数
-  rejected: int,         // 人工审核不通过张数
-  pushed: boolean,       // 是否已推送下游
-  size: { length: float, width: float, height: float }  // 商品尺寸（cm）
-}
-
-```
-
-### 7.2 Photo（图片）
-
-```plaintext
-{
-  id: string,
-  taskId: string,           // -> Task.id
-  ownerId: string,          // 冗余自 task.ownerId，方便按创建人筛选
-  model: string,            // modelId: "linkfox" | "ziyan" | "huiwa"
-  type: string,             // "scene" | "whiteClose" | "close" | "selling" | "aplus"
-  typeIndex: int,           // 任务内同类型序号（从 1 开始）
-  status: "approved" | "rejected",  // 人工审核结果
-  pushed: boolean,          // 该图是否已推送
-  infringement: {
-    status: "passed" | "rejected" | "untested",
-    detail: string
-  },
-  imgUrl: string,
-  createdAt: datetime,
-  updatedAt: datetime
-}
-
-```
-
-### 7.3 组织与权限
-
-```plaintext
-User {
-  id: string,
-  name: string,
-  system: "art" | "ops",      // 所属系统（一个物理人可以在两个系统各有账号）
-  deptId: string,             // 部门
-  groupId: string | null,     // 组（精品/爆旺部门的专员可能 groupId 为 null）
-  role: "staff" | "group_lead" | "dept_senior_lead" | "director" | "admin"
-}
-Department { id, name, system }
-Group { id, name, deptId }
-
-// 特殊团队（可见范围上提的集合）
-SpecialTeam {
-  id, name,
-
-  members: User[ ],                  // 属于该特殊团队的人
-
-  visibilityScope: {                // 他们能看到的范围
-
-    deptIds: string[ ],
-
-
-    groupIds: string[ ],
-
-
-    userIds: string[ ]
-
-  }
-}
-
-// 跨系统管理员授权
-PlatformAdminGrant {
-  userId: string,
-  system: "art" | "ops",
-  reason: string
-}
-
-```
----
-
-## 8. 接口契约（建议骨架）
-
-> 以下仅为建议，字段名/路径/传参风格由后端自行决定，只要语义等价即可。
-
-### 8.1 获取当前用户可见的创建人树
-
-```plaintext
-GET /api/completed-images/visible-creators
-
-返回:
-{
-  currentUser: { id, name, deptId, groupId },
-  tree: [
-    {
-      deptId: "dept-a",
-      deptName: "A 部门",
-      users: [{ id, name, short, color }, ...],  // 无组部门人员直接挂在部门下，可为空
-      groups: [
-        {
-          groupId: "grp-a1",
-          groupName: "A1 组",
-          users: [{ id, name, short, color }, ...]
-        },
-        ...
-      ]
-    },
-    ...
-  ]
-}
-
-```
-
-后端已经应用了 5.5 的三条规则，返回的 tree 就是可见范围；前端直接渲染。
-
-### 8.2 查询已完成图片列表
-
-```plaintext
-GET /api/completed-images/list
-  ?page=1
-  &pageSize=20                  // 10 | 20 | 50
-  &sortBy=created               // created | updated
-  &sortOrder=desc               // desc | asc
-  &statusTab=all                // all | approved | rejected
-  &creatorIds=u1,u2,u3          // 逗号分隔；为空 = 可见范围全选；包含越权 ID 时返回 400
-  &timeDim=created              // created | updated
-  &timeFrom=2026-04-17
-  &timeTo=2026-04-24
-  &keyword=22062564             // 空 = 不过滤
-  &modelId=linkfox              // 空 = 不过滤
-  &imageType=scene              // 空 = 不过滤
-  &infringementStatus=passed    // passed | rejected | untested | 空
-  &countDim=approved            // approved | rejected
-  &countOp=gte                  // gte | lte | eq
-  &countVal=5                   // 空 = 不过滤
-
-返回:
-{
-  page: 1,
-  pageSize: 20,
-  totalTasks: 137,              // 所有筛选应用后的任务总数（分页基数）
-  statusCounts: {               // 用于子 Tab 数字角标（经所有筛选、未经 statusTab 过滤）
-    all: 1284,
-    approved: 1032,
-    rejected: 252
-  },
-  tasks: [
-    {
-      id: "T20260324_000001",
-      sku: "22062564",
-      storeName: "Amazon-Z01466-UK",    // 美工版可以不返回或为 null
-      asin: "B08DNRKJX7",                // 美工版可以不返回或为 null
-      title: "...",
-      owner: { id, name },
-      createdAt, updatedAt,
-      size: { length, width, height },
-      counts: {                 // 基于任务真实全量，不受筛选影响
-        total: 32,
-        approved: 28,
-        rejected: 4
-      },
-      photos: [                 // 已经应用所有图片维度筛选 + statusTab
-        {
-          id, type, typeIndex, model,
-          status, pushed,
-          infringement: { status, detail },
-          imgUrl
-        },
-        ...
-      ]
-    },
-    ...
-  ]
-}
-
-```
-
-**后端关键职责：**
-
-1.  先按当前用户身份计算可见范围（规则 1→2→3）
-
-2.  校验 `creatorIds` 是可见范围子集；如包含越界 ID，直接返回 400
-
-3.  在可见范围内应用任务维度筛选 → 得到候选任务集
-
-4.  对每个候选任务，先应用除 `statusTab` 外的图片维度筛选（模型 / 图片类型 / 侵权禁售）→ 得到 `statusCounts` 的统计基数
-
-5.  在上述基数上应用 `statusTab` → 过滤其 `photos` 数组
-
-6.  剔除 photos 为空的任务
-
-7.  按任务创建/更新时间排序、按任务分页、返回
-
-
-`statusCounts` 要注意：它是"不考虑 statusTab 的情况下各状态的数量"，用于驱动前端子 Tab 角标。实现时应在已应用任务维度筛选、且已应用模型/图片类型/侵权禁售筛选后，再按人工审核状态分别统计。
-
-### 8.3 沉浸大屏入口
-
-本页面不调用专门的"打开沉浸大屏"接口；前端点击卡片后**直接调用公司内部已有的 L3 组件**打开（或走 L3 的路由）。参数需要 `photoId`、`taskId`，以及只读标记（该页进入 L3 应为只读态，用户不应在回看页触发审核变更）。
-
----
-
-## 9. 边界情况与错误处理
+## 7. 边界情况与错误处理
 
 | 场景 | 期望行为 |
 | --- | --- |
@@ -911,9 +693,9 @@ GET /api/completed-images/list
 
 ---
 
-## 10. 验收要点（建议测试清单）
+## 8. 验收要点（建议测试清单）
 
-### 10.1 数据权限验收（重点）
+### 8.1 数据权限验收（重点）
 
 在运营版测试：
 
@@ -951,10 +733,10 @@ GET /api/completed-images/list
 
 *   [ ] 运营版管理员登录运营版能看到深圳+成都
 
-*   [ ] 直接调用列表接口传入越权 `creatorIds` 时，后端返回 400，不返回列表数据
+*   [ ] 请求条件包含越权创建人时，后端返回错误，不返回列表数据
 
 
-### 10.2 两版独立性验收
+### 8.2 两版独立性验收
 
 *   [ ] 美工版任务在运营版查不到；反之亦然
 
@@ -969,7 +751,7 @@ GET /api/completed-images/list
 *   [ ] 两版模型下拉在 v1 均包含 LinkFox / 自研 / 阿里绘蛙
 
 
-### 10.3 筛选功能验收
+### 8.3 筛选功能验收
 
 *   [ ] 创建人多选 / 部门全选 / 组全选 / 搜索 / "我"标签 均工作
 
@@ -994,7 +776,7 @@ GET /api/completed-images/list
 *   [ ] 重置按钮清空所有筛选条件（保留排序、密度）
 
 
-### 10.4 其他功能验收
+### 8.4 其他功能验收
 
 *   [ ] 按任务分页，分页逻辑正确
 
@@ -1011,9 +793,9 @@ GET /api/completed-images/list
 
 ---
 
-## 11. 附录
+## 9. 附录
 
-### 11.1 术语
+### 9.1 术语
 
 | 术语 | 含义 |
 | --- | --- |
@@ -1025,12 +807,12 @@ GET /api/completed-images/list
 | pending | 筛选条件暂存状态，未点「查询」前不影响列表 |
 | 可见范围 | 数据权限规则计算出的当前用户能看到的人集合 |
 
-### 11.2 相关文档
+### 9.2 相关文档
 
 *   `index.html` —— 高保真交互原型
 
 
-### 11.3 变更记录
+### 9.3 变更记录
 
 | 版本 | 日期 | 变更 |
 | --- | --- | --- |
